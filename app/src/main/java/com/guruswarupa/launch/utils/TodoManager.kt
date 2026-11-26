@@ -363,7 +363,7 @@ class TodoManager(
         }
     }
 
-    private fun checkRecurringTasks() {
+    fun checkRecurringTasks() {
         val currentDate = getCurrentDateString()
         val calendar = Calendar.getInstance()
         val currentDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
@@ -372,6 +372,7 @@ class TodoManager(
         val currentTimeInMinutes = currentHour * 60 + currentMinute
         val currentTimeMillis = System.currentTimeMillis()
 
+        var hasStateChanges = false
         val itemsToRemove = mutableListOf<TodoItem>()
 
         for (todoItem in todoItems) {
@@ -386,30 +387,44 @@ class TodoManager(
                             if (lastCompletedMillis != null) {
                                 val elapsedMinutes = (currentTimeMillis - lastCompletedMillis) / (1000 * 60)
                                 if (elapsedMinutes >= todoItem.recurrenceInterval) {
-
-                                    todoItem.isChecked = false
-                                    todoItem.lastCompletedDate = null
+                                    if (todoItem.isChecked || todoItem.lastCompletedDate != null) {
+                                        todoItem.isChecked = false
+                                        todoItem.lastCompletedDate = null
+                                        hasStateChanges = true
+                                    }
                                 }
                             }
                         } catch (_: Exception) {
 
                             if (todoItem.lastCompletedDate != currentDate) {
-                                todoItem.isChecked = false
-                                todoItem.lastCompletedDate = null
+                                if (todoItem.isChecked || todoItem.lastCompletedDate != null) {
+                                    todoItem.isChecked = false
+                                    todoItem.lastCompletedDate = null
+                                    hasStateChanges = true
+                                }
                             }
                         }
                     } else if (todoItem.isChecked) {
 
                         todoItem.lastCompletedDate = currentTimeMillis.toString()
+                        hasStateChanges = true
                     }
-                } else if (todoItem.isDayBased() && todoItem.lastCompletedDate != currentDate) {
-
-                    if (todoItem.selectedDays.contains(currentDayOfWeek)) {
-                        todoItem.isChecked = false
+                } else if (todoItem.isDayBased()) {
+                    if (todoItem.lastCompletedDate != currentDate) {
+                        if (todoItem.selectedDays.contains(currentDayOfWeek)) {
+                            if (todoItem.isChecked || todoItem.lastCompletedDate != null) {
+                                todoItem.isChecked = false
+                                todoItem.lastCompletedDate = null
+                                hasStateChanges = true
+                            }
+                        }
                     }
                 } else if (todoItem.lastCompletedDate != currentDate) {
-
-                    todoItem.isChecked = false
+                    if (todoItem.isChecked || todoItem.lastCompletedDate != null) {
+                        todoItem.isChecked = false
+                        todoItem.lastCompletedDate = null
+                        hasStateChanges = true
+                    }
                 }
             } else if (todoItem.dueTime != null) {
 
@@ -434,11 +449,17 @@ class TodoManager(
             val index = todoItems.indexOf(item)
             if (index != -1) {
                 todoItems.removeAt(index)
-                todoAdapter.notifyItemRemoved(index)
+                if (::todoAdapter.isInitialized) {
+                    todoAdapter.notifyItemRemoved(index)
+                }
             }
         }
 
-        if (itemsToRemove.isNotEmpty()) {
+        if (hasStateChanges && ::todoAdapter.isInitialized) {
+            todoAdapter.notifyItemRangeChanged(0, todoItems.size)
+        }
+
+        if (itemsToRemove.isNotEmpty() || hasStateChanges) {
             saveTodoItems()
         }
     }
