@@ -167,7 +167,10 @@ class LifecycleManager(
             lastUsageRefreshAt = now
         }
 
-        deps.todoManager?.rescheduleTodoAlarms()
+        deps.todoManager?.let {
+            it.checkRecurringTasks()
+            it.rescheduleTodoAlarms()
+        }
 
         onResumeCallbacks.forEach { it.invoke() }
     }
